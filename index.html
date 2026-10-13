@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>길운이 드는 시간</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Pretendard', sans-serif; background-color: #0f172a; color: white; overflow-x: hidden; scroll-behavior: smooth; }
+        
+        #mainScreen { background-image: linear-gradient(to bottom, rgba(15,23,42,0.6), rgba(15,23,42,1)), url('./images/title.png'); background-size: cover; background-position: center; }
+        
+        .clock-face { width: 220px; height: 220px; border-radius: 50%; border: 6px solid #fbbf24; position: relative; background: radial-gradient(circle, #1e293b 0%, #0f172a 100%); box-shadow: 0 0 30px rgba(251, 191, 36, 0.3); margin: 0 auto; }
+        .hand { position: absolute; bottom: 50%; left: 50%; transform-origin: bottom; background: white; border-radius: 4px; transform: translateX(-50%); transition: transform 0.05s cubic-bezier(0.4, 2.08, 0.55, 0.44); }
+        .hour-hand { width: 4px; height: 55px; background: #cbd5e1; }
+        .min-hand { width: 3px; height: 80px; background: #f8fafc; }
+        .sec-hand { width: 2px; height: 95px; background: #ef4444; }
+        .clock-center { position: absolute; top: 50%; left: 50%; width: 14px; height: 14px; background: #fbbf24; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        
+        .mode-btn { transition: all 0.3s ease; }
+        .mode-btn.active { border-color: #fbbf24; background-color: rgba(251, 191, 36, 0.1); box-shadow: 0 0 15px rgba(251, 191, 36, 0.4); transform: translateY(-2px); }
+
+        .sky-overlay { position: fixed; inset: 0; z-index: 45; opacity: 0; pointer-events: none; transition: opacity 2s; }
+        .night-sky { background: linear-gradient(to bottom, #020111 0%, #20124d 100%); }
+        .dawn-sky { background: linear-gradient(to bottom, #1a2a6c, #b21f1f, #fdbb2d); opacity: 0; transition: opacity 3s; }
+        .clouds { position: absolute; width: 200%; height: 100%; background: url('https://www.transparenttextures.com/patterns/stardust.png'); animation: moveClouds 20s linear infinite; opacity: 0.4; }
+        @keyframes moveClouds { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+        .perspective { perspective: 1500px; }
+        .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transform-style: preserve-3d; transition: transform 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); transform: scale(0.3) translateY(200px); opacity: 0; }
+        .card-show { transform: scale(1) translateY(0); opacity: 1; }
+        .card-inner.is-flipped { transform: scale(1) translateY(0) rotateY(180deg); }
+        
+        .card-front, .card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); border-width: 4px; border-style: solid;}
+        .card-front { background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .card-back { transform: rotateY(180deg); background-color: #0f172a; overflow: hidden; }
+
+        /* 게이지 위치 좌측 상단으로 이동 */
+        .gauge-container { position: absolute; top: 15px; left: 15px; width: 50px; height: 50px; border-radius: 50%; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 20; box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        .circular-chart { display: block; margin: 0 auto; max-width: 100%; max-height: 250px; }
+        .circle-bg { fill: none; stroke: #334155; stroke-width: 3.8; }
+        .circle { fill: none; stroke-width: 3.8; stroke-linecap: round; transition: stroke-dasharray 1.5s ease-out; }
+        .gauge-text { position: absolute; font-size: 11px; font-weight: 900; color: white; text-shadow: 1px 1px 2px black; }
+        /* 라벨 위치 하단으로 조정 (위치 변경에 따라 상단 겹침 방지) */
+        .gauge-label { position: absolute; top: auto; bottom: -18px; font-size: 10px; font-weight: bold; color: #fbbf24; text-shadow: 1px 1px 2px black; }
+
+        /* 음양오행 한자 80% 축소 (3rem -> 2.4rem) */
+        .yin-yang-container { display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,0.4); border-radius: 15px; padding: 15px; margin-top: 15px; border: 1px solid rgba(255,255,255,0.1); }
+        .hanja-large { font-size: 2.4rem; font-weight: 900; margin-bottom: 5px; text-shadow: 0 0 15px currentColor; transition: transform 0.5s; }
+        .hanja-large.animate { transform: scale(2); }
+
+        .lotto-grid { display: flex; justify-content: space-between; gap: 6px; width: 100%; margin-top: 15px; position: relative; }
+        .lotto-card { width: 100%; aspect-ratio: 3/4; perspective: 1000px; cursor: pointer; }
+        .lotto-inner { position: relative; width: 100%; height: 100%; text-align: center; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1); }
+        .lotto-card.flipped .lotto-inner { transform: rotateY(180deg); }
+        .lotto-front, .lotto-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .lotto-front { background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid #334155; color: #64748b; font-size: 1.5rem; }
+        .lotto-back { transform: rotateY(180deg); background: radial-gradient(circle, #f59e0b, #d97706); color: white; border: 2px solid #fbbf24; font-size: 1.5rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }
+        .lotto-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; text-align: center; pointer-events: none; z-index: 10; animation: blink 1.5s infinite; font-weight: bold; color: #fbbf24; background: rgba(0,0,0,0.6); padding: 5px; border-radius: 5px; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col relative">
+
+    <div id="nightOverlay" class="sky-overlay night-sky">
+        <div class="clouds"></div>
+        <div id="dawnOverlay" class="sky-overlay dawn-sky"></div>
+    </div>
+    
+    <input type="file" id="faceInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+
+    <div id="mainScreen" class="flex-1 flex flex-col items-center justify-center p-6 relative z-10 transition-opacity duration-1000">
+        <h2 class="text-gray-300 text-lg mb-2 tracking-widest font-semibold drop-shadow-md">운은 흐르고, 기회는 순간에 찾아온다.</h2>
+        <h1 class="text-5xl font-black text-white mb-12 text-center leading-tight drop-shadow-lg tracking-tight">
+            길운이 드는 시간
+        </h1>
+        
+        <div class="clock-face mb-8">
+            <div id="hourHand" class="hand hour-hand"></div>
+            <div id="minHand" class="hand min-hand"></div>
+            <div id="secHand" class="hand sec-hand"></div>
+            <div class="clock-center"></div>
+        </div>
+
+        <div id="digitalClock" class="text-3xl font-mono text-yellow-400 font-bold tracking-widest mb-12 drop-shadow-[0_0_10px_rgba(251,191,36,0.5)]">00:00:00:00</div>
+
+        <div class="flex gap-4 mb-10 w-full max-w-sm">
+            <button id="btnFortune" onclick="selectMode('fortune')" class="mode-btn flex-1 bg-gray-800/80 backdrop-blur text-gray-300 py-4 rounded-xl border-2 border-gray-700">
+                <i class="fa-solid fa-star-and-crescent mb-2 text-xl block"></i>
+                <span class="text-sm">지금 이 순간</span><br><span class="font-bold text-white text-lg">운세 알아보기</span>
+            </button>
+            <button id="btnFace" onclick="triggerFaceScan()" class="mode-btn flex-1 bg-gray-800/80 backdrop-blur text-gray-300 py-4 rounded-xl border-2 border-gray-700">
+                <i class="fa-solid fa-camera mb-2 text-xl block"></i>
+                <span class="text-sm">지금 이 순간</span><br><span class="font-bold text-white text-lg">관상 알아보기</span>
+            </button>
+        </div>
+
+        <button id="btnSummon" onclick="startSummoning()" disabled class="w-full max-w-sm bg-gradient-to-r from-yellow-600 to-yellow-400 text-gray-900 font-black py-5 rounded-2xl shadow-[0_0_15px_rgba(251,191,36,0.2)] transition-all transform opacity-40 cursor-not-allowed">
+            <div class="text-sm opacity-90 mb-1">모드를 먼저 선택해주세요</div>
+            <div class="text-2xl animate-pulse">운명과 시간이 만나는 순간</div>
+        </button>
+    </div>
+
+    <div id="resultScreen" class="hidden flex-1 flex-col items-center p-6 relative z-10 pb-20 overflow-y-auto w-full max-w-2xl mx-auto">
+        <div class="perspective w-72 h-[420px] mx-auto mt-2 mb-8 z-10 shrink-0">
+            <div id="cardInner" class="card-inner">
+                <div id="cardFront" class="card-front">
+                    <i class="fa-solid fa-bolt text-5xl mb-4 animate-bounce" id="loadingIcon"></i>
+                    <p id="loadingText" class="font-bold tracking-[0.3em] text-lg">SUMMONING</p>
+                </div>
+                <div id="cardBack" class="card-back group">
+                    <img id="cardImage" src="" class="w-full h-full object-cover opacity-80 group-hover:scale-110 transition-transform duration-[2000ms]">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent"></div>
+                    
+                    <!-- 신통력 게이지 좌측 상단으로 이동 -->
+                    <div class="gauge-container">
+                        <span class="gauge-label">신통력</span>
+                        <svg viewBox="0 0 36 36" class="circular-chart">
+                            <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            <path id="gaugePath" class="circle" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        </svg>
+                        <div id="gaugeText" class="gauge-text">0%</div>
+                    </div>
+
+                    <div class="absolute bottom-6 left-4 w-full text-left">
+                        <span id="rankBadge" class="text-black text-xs font-black px-4 py-1.5 rounded-full mb-3 inline-block shadow-lg">등급</span>
+                        <h3 id="cardName" class="text-3xl font-black text-white drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)] tracking-tight">이름</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full bg-gray-800/90 rounded-3xl px-4 py-8 border border-gray-700 backdrop-blur-md z-10 shadow-2xl relative">
+            <div class="mb-8 relative">
+                <i class="fa-solid fa-quote-left text-3xl opacity-20 absolute -top-4 -left-1" id="quoteIcon"></i>
+                <p id="fortuneMessage" class="text-lg text-gray-100 leading-relaxed break-keep relative z-10 pl-6 mt-2 font-medium"></p>
+            </div>
+
+            <div id="statsContainer" class="bg-gray-900/80 rounded-2xl p-5 mb-6 border border-gray-700/50 transform transition-all duration-500 opacity-0 translate-y-10">
+                <div class="flex justify-between items-end mb-4">
+                    <div>
+                        <span class="text-gray-400 text-xs font-bold tracking-widest block mb-1">지금 행운 점수</span>
+                        <span id="fortuneScore" class="text-6xl font-black leading-none">0</span><span class="text-gray-500 font-bold ml-1">점</span>
+                    </div>
+                </div>
+                
+                <div class="yin-yang-container">
+                    <span class="text-gray-400 text-xs font-bold mb-2">오행(五行) 기운</span>
+                    <div id="yinYangHanja" class="hanja-large"></div>
+                    <p id="actionMessage" class="text-[15px] font-bold text-white mt-4 text-center"></p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div id="luckyColorBox" class="p-4 rounded-2xl flex flex-col justify-between shadow-inner h-24 border border-black/20">
+                    <span class="text-[11px] font-bold text-white/90 drop-shadow-md"><i class="fa-solid fa-palette mr-1"></i> 행운의 컬러</span>
+                    <strong id="luckyColor" class="text-white text-base drop-shadow-md self-end text-right"></strong>
+                </div>
+                <div class="bg-gray-900 p-4 rounded-2xl border border-gray-700 flex items-center justify-between h-24 relative overflow-hidden">
+                    <div class="z-10 flex flex-col h-full justify-between w-full">
+                        <span class="text-[11px] font-bold text-gray-400"><i class="fa-solid fa-utensils mr-1"></i> 추천 메뉴</span>
+                        <strong id="luckyCafe" class="text-white text-sm font-bold mt-auto max-w-[70px] break-keep leading-tight">메뉴</strong>
+                    </div>
+                </div>
+                <div class="bg-gray-900 p-4 rounded-2xl border border-gray-700 h-24 flex flex-col justify-between">
+                    <span class="text-[11px] font-bold text-blue-400"><i class="fa-solid fa-user-check mr-1"></i> 지금 내 편</span>
+                    <strong id="luckyMate" class="text-white text-sm font-bold self-end text-right leading-tight">MBTI<br>혈액형</strong>
+                </div>
+                <div class="bg-gray-900 p-4 rounded-2xl border border-gray-700 h-24 flex flex-col justify-between">
+                    <span class="text-[11px] font-bold text-red-400"><i class="fa-solid fa-user-xmark mr-1"></i> 멀리할 사람</span>
+                    <strong id="badMate" class="text-gray-400 text-sm font-bold self-end text-right leading-tight">MBTI<br>혈액형</strong>
+                </div>
+            </div>
+
+            <div class="bg-gray-900 p-5 rounded-2xl border border-gray-700 w-full relative">
+                <span class="text-[12px] font-bold text-gray-400 block text-center mb-2"><i class="fa-solid fa-clover mr-1 text-yellow-400"></i> 행운의 번호</span>
+                <div id="lottoHint" class="lotto-hint">뒤집기</div>
+                <div id="lottoGrid" class="lotto-grid"></div>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-3 w-full max-w-xs mt-10 mb-8">
+            <button onclick="location.reload()" class="w-full bg-gray-800 py-4 rounded-xl text-gray-300 font-bold text-base border border-gray-700 hover:bg-gray-700 transition">내 운명 바꾸기</button>
+            <button onclick="shareFortune()" class="w-full bg-gradient-to-r from-pink-500 to-orange-400 py-4 rounded-xl text-white font-black text-base shadow-lg hover:scale-[1.02] transition transform">
+                <i class="fa-solid fa-gift mr-2"></i> 행운 선물하기
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const allAngels = [{"level": "rare", "name": "계룡산 흑발도사", "element": {"h": "木", "m": "자연과 이치에 순응하라. 억지로 막힌 것을 뚫으려다간 도리어 다칠 수 있다.", "c": "#10b981"}, "cafe": "따뜻한 쌍화차", "mate": "INTP / AB형", "pools": {"intro": ["허허, 이 사람아. 기운이 맑아지는 것을 보니 때가 이르렀네. 발걸음을 멈추고 잠시 숨을 고르게나.", "자연의 흐름이 자네를 돕고 있으니 조급해할 필요가 없네. 물 흐르듯 가만히 두면 저절로 열릴 것이야.", "산세가 굽이치듯 자네의 운도 이제 막 새로운 굽이를 돌고 있네. 깊게 심호흡을 한 번 해보시게."], "wealth": ["재물이란 쫓을수록 멀어지는 법이니, 오늘은 욕심을 비워두어야 도리어 지갑이 차오르네. 뜻밖의 귀인이 작은 선물을 들고 올 수도 있지.", "금전운이 솔솔 불어오고 있으나 섣부른 투자는 그르칠 수 있네. 가졌던 것을 온전히 지키는 데 집중하시게.", "베푸는 만큼 돌아오는 법이니, 오늘 점심은 주변 사람에게 가볍게 베풀어보시게. 그것이 더 큰 복으로 돌아올 것이야."], "work": ["일터에서는 서두르지 말고 주변을 살펴야 실수를 피할 수 있네. 너무 앞서나가면 동료들의 시기를 살 수 있으니 주의하시게.", "막혀있던 문서나 골칫거리가 자연스레 풀려나갈 징조네. 억지로 힘쓰지 말고 때를 기다리며 차분히 준비하시게.", "자네의 재주를 인정받을 수 있는 기회가 올 것이네. 다만 나서지 말고 묵묵히 제 할 일을 다할 때 더욱 빛이 날 것이야."], "relation": ["인연이란 억지로 맺으려 하면 실타래처럼 꼬이는 법이네. 오늘은 곁에 있는 오랜 인연들에게 따뜻한 눈빛 한 번 건네보시게.", "새로운 만남이 썩 좋지만은 않으니 낯선 이의 과도한 친절은 경계하시게. 내 곁의 사람들과 속 깊은 대화를 나누는 것이 이로울 것이야.", "오해가 있었다면 오늘이 묵은 감정을 씻어낼 좋은 날이네. 자네가 먼저 부드럽게 다가가면 상대도 마음을 열 것이네."], "health": ["몸의 기운이 상체로 쏠려 있으니 단전호흡으로 기운을 아래로 내리시게. 가벼운 산책이 심신의 안정을 줄 것이야.", "눈과 목이 피로해질 수 있으니 틈틈이 먼 산을 바라보며 휴식을 취하시게. 차가운 음식보다는 따뜻한 차가 몸에 이로울 것이네.", "자연의 기운을 받아야 할 때이니 잠시라도 햇볕을 쬐며 걸으시게. 굳어있던 몸과 마음이 한결 가벼워질 것이야."], "outro": ["모든 것은 때가 있는 법, 순리대로 흘러갈 터이니 평안한 하루 보내시게.", "욕심을 버리고 오늘 하루 무탈함에 감사하면, 내일은 더 큰 빛이 스며들 것이네.", "자연의 섭리 안에서 평온을 찾으시게나. 허허, 오늘은 참으로 길한 날이네."]}}, {"level": "rare", "name": "점성술사 안토니오", "element": {"h": "火", "m": "태양의 열정으로 멈춰있던 계획을 실행하라. 머뭇거리면 운이 식는다.", "c": "#ef4444"}, "cafe": "아인슈페너", "mate": "ENFP / B형", "pools": {"intro": ["당신의 별자리가 오늘 유난히 밝게 빛나고 있군요. 우주의 긍정적인 에너지가 당신을 향해 집중되고 있습니다.", "천체의 배열이 당신에게 완벽한 조화를 선사하는 날입니다. 기분 좋은 설렘과 함께 하루를 시작하셔도 좋습니다.", "우주의 신비로운 기운이 당신의 오라(Aura)를 감싸고 있네요. 오늘 당신의 직관은 그 어느 때보다 날카로울 것입니다."], "wealth": ["행성의 궤도가 당신의 금전운을 상승 곡선으로 이끌고 있습니다. 잊고 있었던 비상금을 발견하거나 소소한 이익을 얻을 수 있겠네요.", "오늘은 지출을 조금 늘려도 우주가 그만큼을 다시 채워줄 것입니다. 자신을 위한 가치 있는 투자라면 망설이지 마세요.", "재물의 별이 당신의 별자리에 머무는 시기입니다. 긍정적인 마음으로 금전적인 결정을 내린다면 좋은 결과가 따를 것입니다."], "work": ["수성의 영향으로 의사소통이 매우 원활해지는 날입니다. 중요한 협상이나 프레젠테이션이 있다면 당신의 능력을 마음껏 펼쳐보세요.", "직장에서 당신의 아이디어가 별처럼 반짝일 기회가 찾아옵니다. 주저하지 말고 당신의 생각을 세상에 알리세요.", "태양의 에너지가 당신의 업무 성과를 비추고 있습니다. 묵묵히 노력해온 일들이 드디어 빛을 발하기 시작할 것입니다."], "relation": ["금성의 따뜻한 기운이 사랑과 우정의 영역을 가득 채우고 있네요. 소중한 사람들과 로맨틱하거나 따뜻한 시간을 보내기에 완벽합니다.", "새로운 인연의 별자리가 당신 궤도에 진입했습니다. 우연한 만남이 깊은 인연으로 발전할 수 있으니 마음의 문을 열어두세요.", "주변 사람들에게 당신의 긍정적인 에너지를 나누어주세요. 당신의 미소 하나가 누군가에게는 밤하늘의 별빛처럼 위로가 될 것입니다."], "health": ["활력이 넘치고 컨디션이 최고조에 달하는 날입니다. 평소 미뤄두었던 운동이나 활동적인 취미를 시작하기에 아주 좋습니다.", "달의 기운이 평온함을 주니 수면의 질이 높아질 것입니다. 밤에는 스마트폰을 멀리하고 깊은 명상이나 휴식을 취해보세요.", "우주의 리듬에 몸을 맡기고 스트레스를 날려버리세요. 가벼운 스트레칭과 함께 별을 바라보며 깊은 숨을 들이마시는 것을 추천합니다."], "outro": ["당신의 내일도 별빛처럼 찬란하기를 진심으로 기원합니다.", "우주의 축복이 언제나 당신과 함께할 것입니다. 아름다운 하루 보내세요.", "별들의 속삭임이 당신에게 행운을 가져다주기를 바랍니다. 항상 응원할게요."]}}, {"level": "rare", "name": "타로마스터 루나", "element": {"h": "水", "m": "내면의 목소리에 귀를 기울여라. 겉으로 보이는 것보다 감춰진 진실을 꿰뚫어 보아야 한다.", "c": "#3b82f6"}, "cafe": "허브티", "mate": "INFJ / A형", "pools": {"intro": ["당신의 무의식이 이 카드를 이끌어냈군요. 지금 당신의 내면 깊은 곳에서 어떤 변화가 시작되고 있어요.", "카드들이 속삭이는 소리가 들리나요? 오늘은 겉으로 드러나는 일들보다 당신의 마음속 이야기에 귀 기울여야 할 때입니다.", "신비로운 달의 에너지가 당신을 감싸고 있네요. 이끌림에 몸을 맡기고 흐름을 타보는 건 어떨까요?"], "wealth": ["펜타클 카드가 역방향으로 흔들리고 있네요. 충동적인 소비는 자제하고 꼼꼼하게 지갑을 점검해보세요.", "조금씩 쌓아온 것들이 결실을 맺을 준비를 하고 있습니다. 무리한 투자보다는 안정적인 선택이 금전적인 평화를 가져다줄 거예요.", "금전의 흐름이 잔잔한 호수 같습니다. 예상치 못한 작은 행운이 깃들 수 있으니 우연을 즐겨보세요."], "work": ["완드 카드가 당신의 창의성을 응원하고 있어요. 직장이나 학업에서 당신만의 독창적인 아이디어가 큰 힘을 발휘할 것입니다.", "오늘은 누군가와 경쟁하기보다 협력하는 것이 훨씬 유리합니다. 부드러운 소통이 얽혀있던 업무의 실타래를 풀어줄 거예요.", "검 카드가 당신의 결단력을 요구하고 있군요. 결정을 미루던 일이 있다면 오늘 직관을 믿고 과감하게 선택해보세요."], "relation": ["컵 카드가 넘치듯 찰랑입니다. 당신의 따뜻한 공감 능력이 주변 사람들에게 큰 위로가 되고, 그 마음이 고스란히 돌아올 거예요.", "누군가와의 관계에서 고민이 있다면, 오늘은 한 발짝 물러서서 상황을 관망하는 것이 좋습니다. 시간이 해결해줄 감정들이니까요.", "당신을 향한 긍정적인 관심이 느껴지네요. 우연히 마주친 사람과 즐거운 대화가 이어질 수 있으니 미소를 잃지 마세요."], "health": ["마음의 에너지가 많이 소진된 상태일 수 있어요. 오늘은 억지로 무리하지 말고 스스로를 토닥여주는 시간을 가지세요.", "물과 관련된 에너지가 부족합니다. 수분 섭취를 늘리고, 저녁에는 따뜻한 물로 샤워하며 하루의 긴장을 씻어내세요.", "정신적인 피로가 신체로 이어질 수 있으니 깊은 휴식이 필요합니다. 마음을 차분하게 해주는 음악과 함께 하루를 마무리해보세요."], "outro": ["당신의 직관이 언제나 올바른 길로 인도할 거예요. 평안한 밤 되세요.", "카드들이 전하는 위로가 당신에게 닿았기를 바라요. 내일은 더 찬란할 거예요.", "당신 내면의 빛이 어둠을 밝혀줄 것입니다. 언제나 당신을 응원할게요."]}}, {"level": "special", "name": "해원정사", "element": {"h": "金", "m": "강한 결단력이 필요한 시점. 맺고 끊음을 확실히 하여 불필요한 인연과 지출을 정리하라.", "c": "#f59e0b"}, "cafe": "아이스 아메리카노", "mate": "ESTJ / O형", "pools": {"intro": ["야 이놈아! 뻔히 보이는 함정을 왜 제 발로 기어들어가! 당장 정신 똑바로 안 차려? 너한테 기회가 왔는데 왜 발로 차버리냐고!", "아이고 답답해! 왜 맨날 똑같은 실수만 반복해? 오늘만큼은 제발 내 말 좀 듣고 딴생각 하지 마라!", "네 눈빛 보니까 썩은 동태눈깔이네! 당장 허리 펴고 고개 들어! 오늘 네 기운 제대로 안 살리면 다 뺏긴다!"], "wealth": ["지금 주변에 실속 없이 너 이용하려는 놈들 널렸어! 지갑 단속 제대로 안 하면 오늘 돈 훅 나간다. 정신 차려!", "어디서 일확천금 노리려고 기웃거려? 땀 흘려서 번 돈 아니면 오늘 다 모래알처럼 빠져나가니까 쓸데없는 데 돈 쓰지 마!", "그래도 오늘은 재물운이 좀 붙었네. 누가 밥 산다고 하면 눈치 보지 말고 무조건 얻어먹어! 그게 다 네 복이야!"], "work": ["일터에서 눈치만 보지 말고 들이받을 땐 좀 들이받아! 네 밥그릇은 네가 챙겨야지 누가 챙겨줘? 오늘 일처리는 무조건 확실하게 매듭지어!", "오늘 상사든 동료든 너한테 딴지 거는 놈 무조건 있다. 쫄지 말고 네가 한 일에 당당하게 목소리 내! 기세에서 밀리면 끝이야!", "머리 쓰는 일 있으면 오늘 팍팍 굴려! 직관 쫙 열려있으니까 네 느낌대로 밀어붙이면 무조건 중간 이상은 간다!"], "relation": ["아닌 건 아니라고 딱 잘라 말해! 왜 자꾸 속 끓이면서 억지로 좋은 사람 흉내를 내? 오늘 너 힘들게 하는 인연은 과감하게 쳐내버려!", "너한테 알랑방귀 뀌면서 다가오는 사람 조심해. 앞통수보다 무서운 게 뒤통수야! 오늘 처음 보는 사람한테 절대 속내 다 보여주지 마!", "대신 진짜 네 편인 사람한테는 자존심 세우지 마! 곁에 있을 때 잘해야지 나중에 후회해 봐야 소용없어. 고맙다고 표현 좀 하고 살아!"], "health": ["스트레스받는다고 맵고 짠 거 찾아 먹다간 오늘 밤에 위장 뒤집어진다! 자극적인 거 피하고 오늘 밥은 무조건 슴슴하게 먹어!", "하루 종일 앉아있으니까 몸이 그 모양이지! 오늘 당장 30분이라도 뛰든가 걷든가 해! 땀 좀 빼야 나쁜 기운이 쏙 빠져나간다!", "밤에 쓸데없는 잡생각 하면서 폰 보지 말고 당장 불 끄고 자! 수면 부족하면 내일 하루도 공치는 거야. 당장 자라!"], "outro": ["내 말 허투루 듣지 말고 오늘 하루 똑부러지게 살아! 알았어?", "잔소리 같아도 다 피가 되고 살이 되는 말이니까 꼭 명심해! 똑바로 해!", "내가 뒤에서 기운 팍팍 밀어줄 테니까 오늘 하루 당당하게 어깨 펴고 다녀!"]}}, {"level": "special", "name": "수빈보살", "element": {"h": "水", "m": "마음의 상처를 먼저 돌보라. 타인을 향한 위로가 곧 나를 치유하는 길이다.", "c": "#3b82f6"}, "cafe": "따뜻한 우유", "mate": "ISFJ / A형", "pools": {"intro": ["아이고.. 우리 동생, 그동안 혼자 끙끙대느라 얼마나 맘고생이 심했을꼬. 내가 다 눈물이 나네.. 이리 와, 안아줄게.", "얼굴이 반쪽이 됐네.. 밤마다 혼자 울적해하던 거 내가 다 알아. 이제 혼자 짊어지지 마. 내가 언니(누나)처럼 다 들어줄게.", "오늘따라 유난히 어깨가 무거워 보이네. 괜찮아, 다 지나가는 비일 뿐이야. 내가 옆에서 우산 씌워줄 테니까 한숨 돌려."], "wealth": ["금전적으로 쪼들려서 맘고생 했구나.. 걱정 마, 조만간 막힌 숨통 트일 귀운이 들어오고 있어. 조금만 더 버티자.", "돈이 전부는 아니잖아. 너무 돈돈 거리다 보면 사람 맘이 피폐해져. 오늘은 널 위해 작은 선물 하나 사보는 건 어떨까?", "지갑은 조금 얇아져도 마음만은 넉넉하게 채워지는 하루가 될 거야. 베풀었던 선의가 생각지도 못한 곳에서 행운으로 돌아올 거야."], "work": ["일하면서 사람들한테 치이느라 힘들지? 네가 잘못한 거 아니니까 자책하지 마. 넌 지금 충분히 잘하고 있어.", "오늘은 좀 쉬엄쉬엄 해. 남들 눈치 보느라 정작 네 몸 챙기는 걸 깜빡하잖아. 네가 제일 소중하다는 거 잊지 마.", "지금 당장 성과가 안 난다고 초조해하지 마. 씨앗을 심었다고 내일 당장 꽃이 피진 않잖아. 널 믿고 조금 더 기다려봐."], "relation": ["너한테 상처 준 사람들 미워하느라 네 마음 다치게 하지 마. 그런 사람들은 인연이 아니었던 거야. 좋은 사람만 곁에 둬.", "오늘은 네 주변에 널 진심으로 걱정해주는 사람이 누군지 딱 보일 거야. 그 사람한테 마음을 기대봐. 훨씬 편안해질 테니까.", "사랑받을 자격 충분한 너야. 남한테 맞춰주느라 네 색깔을 잃지 마. 있는 그대로의 널 아껴주는 사람이 분명히 있어."], "health": ["마음이 아프면 몸도 같이 아픈 법이야. 오늘 밤에는 다 잊고 따뜻한 이불 덮고 푹 자. 내일은 다 나아질 거야.", "밥은 잘 챙겨 먹고 다니는 거지? 밥심으로 버티는 거야. 오늘은 꼭 네가 좋아하는 맛있는 음식으로 몸도 마음도 달래줘.", "자꾸 한숨 쉬지 말고! 한숨 쉴 때마다 복 달아난대. 억지로라도 한번 씩 웃어봐. 웃으면 진짜 좋은 에너지가 생길 거야."], "outro": ["내가 항상 뒤에서 기도해줄게. 우리 동생 앞길에 꽃길만 펼쳐지길..", "울고 싶을 땐 언제든 내 생각 해. 내가 든든한 내 편이 되어줄 테니까.", "오늘 하루도 너무 고생 많았어. 토닥토닥.. 예쁜 꿈 꿔."]}}, {"level": "special", "name": "애기동자 별이", "element": {"h": "火", "m": "어린아이와 같은 천진함으로 문제를 바라보라. 복잡하게 생각할수록 꼬인다.", "c": "#ef4444"}, "cafe": "딸기 스무디", "mate": "ESFP / O형", "pools": {"intro": ["히히! 엉아(눈나)! 내가 등 뒤에 붙어있던 시커먼 거 싹 다 쫓아냈어! 이제 갠차나! 나 잘해찌?", "까꿍! 별이 와쪄! 오늘 엉아(눈나) 기분 짱 좋게 만들어주려고 내가 저 멀리서 막 뛰어와찌!", "우와! 오늘 엉아(눈나) 머리 위에 무지개 떴다! 기분 완전 최고로 좋은 하루가 될 꼬야!"], "wealth": ["오늘 길 가다가 반짝거리는 동전 주우면 꼭 맛있는 까까 사머거야대! 내가 주는 선물이야!", "돈이 막 저절로 굴러올 꼬야! 근데 아껴 쓰면 똥 댄대! 엉아(눈나) 먹고 싶은 거 다 사 머거!", "지갑 빵빵해지는 마법 걸어주께! 얍! 오눌은 맛있는 꼬기 반찬 먹을 수 이쓸 꼬야!"], "work": ["머리 아픈 숙제나 일은 다 던져버려! 오늘 하루쯤은 신나게 놀아도 동자님이 다 용서해 주신대!", "어려운 거 이쓰면 너무 고민하지 말고 옆에 칭구한테 도와달라구 해! 금방 뚝딱 해결될 꼬야!", "엉아(눈나) 완전 똑똑이자나! 오늘 칭찬 스티커 백 개 받을 꼬야! 어깨 으쓱으쓱 해도 대!"], "relation": ["오늘 엉아(눈나)한테 나쁜 말 하는 사람 이쓰면 내가 밤에 가서 꿀밤 콩 쥐어박아주께! 걱정 마!", "오눌은 칭구들이 엉아(눈나)를 엄청 엄청 조아할 꼬야! 뽀뽀 쪽 해주는 사람도 이쓸지 몰라! 히히!", "싸웠던 칭구 이쓰면 오늘 먼저 손잡고 화해해! 별이가 옆에서 칭구 마음 사르르 녹여주께!"], "health": ["밖에 나가서 신나게 뛰어놀아야대! 방에만 이쓰면 몸에 벌레 생겨! 우다다다 뛰어다녀!", "밤에 일찍 코 자야대! 늦게 자면 동자님이 꿈에 나타나서 방귀 뿡 뀌고 도망갈 꼬야!", "달달한 거 마니 머그면 충치균 생겨! 양치 치카치카 잘 하고 튼튼하게 자라야대! 알찌?"], "outro": ["별이가 엉아(눈나) 째일 조아해! 내일 또 놀러 오께! 안뇽!", "오늘 하루도 신나게 재밌게 놀아! 내가 마법 가루 뿌려주께 뾰로롱!", "나 갈게! 엉아(눈나) 화이팅! 뽜샤뽜샤!"]}}, {"level": "special", "name": "방울보살", "element": {"h": "金", "m": "경쾌한 리듬으로 일을 처리하라. 주변의 소통이 행운의 열쇠가 된다.", "c": "#f59e0b"}, "cafe": "탄산수", "mate": "ENTP / AB형", "pools": {"intro": ["딸랑딸랑! 오케이~ 기운 아주 맑아졌어! 오늘 안 좋은 기운은 내가 방울 소리로 다 털어냈으니까 기분 좋게 시작해!", "어머어머! 오늘 너한테서 반짝반짝 빛이 나네? 귀인이 팍팍 들어오는 날이니까 당장 예쁘게 꾸미고 나가!", "딸랑딸랑! 리듬 타면서 즐겁게 가보자고! 오늘 하루는 슬픈 음악 말고 신나는 댄스곡만 들어, 알았지?"], "wealth": ["오늘 재물운 완전 사이다야! 꽉 막혀있던 게 오후쯤 되면 뻥 뚫릴 거니까 금전 걱정은 딱 붙들어 매!", "지갑 열 일 있으면 쪼잔하게 굴지 말고 시원하게 한 턱 쏴! 쏜 만큼 두 배 세 배로 굴러들어올 기운이니까!", "어디서 뜻밖의 용돈이나 보너스 떨어질 수도 있겠다! 딸랑딸랑! 돈 들어오는 소리 들린다 들어!"], "work": ["직장에서 눈치 보느라 쭈그러져 있지 마! 오늘은 네가 주인공이니까 목소리 크게 내고 당당하게 행동해!", "어려운 프로젝트? 에이, 오늘 네 직관 완전 살아있어서 척하면 척이야! 번뜩이는 아이디어로 다 해결할 수 있어!", "동료들이랑 수다 떠는 시간에 꿀정보 쏟아진다! 귀 쫑긋 세우고 커뮤니케이션에 집중해봐, 완전 이득일걸?"], "relation": ["오늘 인기 폭발이야 폭발! 어딜 가나 사람들 시선 집중이니까 솔로면 오늘 당장 모임 쫓아나가! 무조건 썸 탄다!", "말실수 하나로 오해 살 수 있으니까 오늘 남 흉보는 말은 절대 입 밖으로 꺼내지도 마. 예쁜 말만 써!", "너 챙겨주는 찐친한테 오늘 고맙다고 커피 한 잔 쏴! 인간관계에서 윤활유 팍팍 쳐주는 게 남는 장사야!"], "health": ["기분 꿀꿀할 땐 텐션 올리는 게 최고야! 오늘 저녁엔 땀 쫙 빼는 운동이나 신나는 활동 무조건 해! 에너지 충전 백프로야!", "목 쪽에 기운이 좀 막혔네. 시원한 물 많이 마시고 스트레칭 쭉쭉 해줘! 몸이 가벼워야 운도 잘 붙어!", "잠 부족하면 내일 얼굴 칙칙해져서 안 돼! 오늘 밤은 잡생각 딱 끄고 미인잠 푹 주무시길 바랄게!"], "outro": ["딸랑딸랑! 내가 오늘 하루 끝까지 행운 팍팍 쳐줄 테니까 신나게 즐겨!", "우울한 생각은 저리 가라! 오늘 남은 시간 완전 럭키할거니까 웃어!", "방울보살 언니가 응원한다! 아자아자 화이팅! 딸랑딸랑!"]}}, {"level": "special", "name": "작두타는 김보살", "element": {"h": "土", "m": "흔들리지 않는 굳건함이 필요하다. 중심을 잡고 외부의 유혹을 차단하라.", "c": "#a16207"}, "cafe": "칡즙", "mate": "ISTJ / A형", "pools": {"intro": ["어허! 삿된 것들은 당장 썩 물러가라! 네 앞길을 어지럽히는 잔가지들을 내가 다 쳐내 줄 터이니 똑바로 서라!", "기강이 해이해졌구나! 턱 끝에 힘을 주고 정신을 바짝 차려라! 오늘 하루 호락호락하게 넘어갈 날이 아니다!", "내가 오늘 네 곁에서 예리한 작두날처럼 액운을 막아설 것이다! 두려울 것이 없으니 당당하게 맞서라!"], "wealth": ["어디서 일확천금을 노리고 요행을 바라느냐! 땀 흘려 얻지 않은 재물은 독이 될 뿐이다. 사기나 감언이설을 각별히 조심해라!", "가진 것을 잃지 않는 것이 곧 버는 것이다! 오늘 하루 지갑 문을 단단히 걸어 잠그고 충동적인 지출을 칼같이 잘라내라!", "금전 거래나 계약은 오늘 절대 금물이다! 도장 찍을 일이 있다면 내일로 미루는 것이 네 재산을 지키는 길이다!"], "work": ["주변에서 네 흔들려는 수작이 보일 것이다. 흔들리지 말고 네 소신껏 우직하게 밀어붙여라! 결국 네가 승리한다!", "꼼수 부리려다 큰코다친다! 정석대로, 원리원칙대로 업무를 처리해라. 빈틈을 보이면 물어뜯길 수 있으니 완벽을 기해라!", "오늘 중요한 결정을 내려야 한다면 남의 의견에 휘둘리지 마라! 네 뚝심 하나로 결정해야 후환이 없다!"], "relation": ["너를 시기 질투하는 무리들이 뒤에서 험담을 늘어놓을 수 있다. 일일이 대꾸할 가치도 없으니 그저 무시해버려라!", "인간관계의 잔가지를 쳐내야 할 때다. 네게 도움이 안 되고 스트레스만 주는 인연은 오늘부로 미련 없이 끊어내라!", "아부 떨며 다가오는 자의 속내를 경계해라. 오늘은 묵묵히 제 할 일 하는 진중한 사람만을 가까이 두어야 안전하다!"], "health": ["발밑을 조심해라! 오늘 하루 낙상이나 가벼운 찰과상 등 다칠 위험이 있으니 급하게 서두르지 말고 천천히 걸어라!", "위장이 꼬일 수 있으니 식사는 규칙적으로 하되 찬 음식은 무조건 피해라! 몸의 열을 지키는 것이 오늘 건강의 핵심이다!", "근육이 굳어있으니 운동을 하려거든 격렬한 것보다는 관절을 부드럽게 푸는 체조 위주로 해라. 다치면 오래간다!"], "outro": ["내 경고를 허투루 듣지 않는다면 오늘 하루 무탈하게 넘길 수 있을 것이다!", "마음을 굳세게 먹어라! 내가 뒤에서 단단히 받쳐주고 있으니 걱정 마라!", "액운은 쳐내고 길운만 남길 터이니, 당당하게 네 길을 걸어가라!"]}}, {"level": "normal", "name": "박말래 할머니", "element": {"h": "土", "m": "사람들과 정을 나누어라. 베푼 만큼 풍성하게 돌아오는 하루다.", "c": "#a16207"}, "cafe": "다방 커피", "mate": "ESFJ / O형", "pools": {"intro": ["아유 우리 강아지 왔어? 밥은 묵고 댕기는 겨? 할미가 우리 강아지 복 많이 받으라고 팍팍 밀어줄팅게 걱정 하덜 말어.", "워메, 얼굴이 훤해졌네 그랴! 올핸 돈벼락 맞고 좋은 일만 꽉꽉 들어찰 겨. 가슴 쫙 펴고 당당하게 댕겨!", "에구머니나, 뭐땀시 그리 시무룩혀? 할미가 안 좋은 기운은 다 빗자루로 쓸어버렸응게 인자 웃어봐!"], "wealth": ["돈이 없다고 너무 기죽지 말어. 사람 인심 잃지 않고 살믄 나중에 그게 다 큰 돈으로 돌아오는 벱이여.", "어디서 솔솔 꽁돈이 들어올랑갑다! 누가 까까 사묵으라고 용돈 주믄 빼지 말고 냉큼 받어. 그게 다 니 복이여.", "오늘은 짠돌이 맹키로 굴지 말고 곁에 있는 칭구들헌테 맛난 거 한 번 쏘ㅑ! 베푼 만큼 배로 들어온당게."], "work": ["일터에서 성질부리지 말고 둥글둥글허게 넘어가. 웃는 낯에 침 못 뱉는다고, 실실 웃음서 일하믄 다 잘 풀릴 겨.", "아이고, 고생이 많네 우리 똥강아지. 긍데 지금 쬐매 힘들어도 꾹 참고 허믄 조만간 웃을 날 오니께 포기하덜 말어.", "모르는 거 있으믄 혼자 끙끙대지 말고 주밴 사람들헌테 물어봐. 다들 자기 일 맹키로 잘 덜 도와줄 기여."], "relation": ["미운 놈 떡 하나 더 준다고, 오늘 너헌테 틱틱대는 놈 있으믄 그려려니 허고 넘어가. 니가 참는 게 이기는 거여.", "주밴 사람들헌테 따땃한 말 한마디 먼저 건네봐. 뜻밖의 인연이 니 인생에 큰 귀인이 될지 워찌 알어?", "오랜만에 반가운 얼굴 보겄네. 전화 오믄 귀찮다 말고 반갑게 받아줘. 다 니헌테 피가 되고 살이 될 인연덜이여."], "health": ["아무리 바빠도 밥은 제때제때 챙겨 묵어! 밥심으로 버티는 겨. 밀가루 쪼까 줄이고 든든한 쌀밥 챙겨 묵어 알았재?", "날이 차니께 목구녕에 찬바람 안 들게 조심허고. 따땃한 물 자주 마셔. 아프면 니만 손해여 잉.", "어깨가 뭉쳐서 돌덩이네 그랴. 밤에 누워서 폰만 쳐다보지 말고 스트레칭 쭈욱쭉 혀고 일찍 자!"], "outro": ["할미가 항상 우리 똥강아지 잘 되라고 두 손 모아 빌고 있을팅게 힘내!", "아이고 이뻐라, 오늘 하루도 다치지 말고 무탈허게 잘 다녀와 잉!", "걱정 근심 다 내려놓고 편안~허게 발 뻗고 자. 내일은 더 좋은 날이여!"]}}, {"level": "normal", "name": "주원철학원", "element": {"h": "木", "m": "학문과 연구에 길한 날. 문서를 꼼꼼히 살피고 계획을 세워라.", "c": "#10b981"}, "cafe": "보이차", "mate": "INTJ / A형", "pools": {"intro": ["명식을 분석해본 결과, 금일은 귀하의 사주 원국에 길운이 뚜렷하게 작용하는 형국입니다. 매사에 자신감을 가지셔도 좋습니다.", "천간과 지지의 기운이 조화롭게 흐르는 평온한 하루입니다. 그간 준비해온 일들을 하나씩 펼쳐보기에 적기입니다.", "오늘 귀하의 일진은 정관(正官)의 기운이 강합니다. 원리원칙을 지키며 안정적으로 하루를 운영하신다면 무탈할 것입니다."], "wealth": ["재성(財星)이 빛을 발하니 재물의 흐름이 원활합니다. 다만, 단기적인 이익보다는 장기적인 안목으로 자산을 운용하는 것이 바람직합니다.", "문서운이 재물운과 결합되어 있으니, 부동산이나 주식 등의 투자에 관해 깊이 있게 분석하고 계획을 세워보시길 권합니다.", "금전적인 손실을 막기 위해서는 금일 지인과의 금전 거래나 보증은 엄격하게 거절하셔야 합니다. 그것이 재물을 지키는 방도입니다."], "work": ["식신생재(食神生財)의 운로이니 귀하의 노력과 아이디어가 곧 성과로 직결되는 날입니다. 기획안이나 새로운 아이디어를 제안해 보십시오.", "학업이나 연구, 집중력을 요하는 업무에 매우 길한 운입니다. 산만한 환경을 피하고 조용한 곳에서 본업에 매진하십시오.", "직장 내 상사와의 마찰이 예상될 수 있으나, 귀하가 이성적이고 논리적으로 대처한다면 오히려 귀하의 능력을 입증하는 계기가 될 것입니다."], "relation": ["귀인(貴人)성이 비추고 있어, 어려운 순간에 귀하에게 조언을 건넬 현명한 사람을 만나게 될 징조입니다. 경청하는 태도를 지니십시오.", "인간관계에 있어서는 거리를 두는 지혜가 필요합니다. 지나친 간섭이나 구설수에 휘말리지 않도록 언행을 무겁게 하십시오.", "새로운 인연을 맺기보다는 기존의 인연, 특히 귀하에게 학문적이나 업무적으로 영감을 주는 이들과 교류하십시오."], "health": ["간담(肝膽)의 기운이 약해질 수 있는 시기입니다. 잦은 음주를 피하고 시력 보호에 각별히 신경 쓰시길 당부드립니다.", "신경이 다소 예민해질 수 있으니, 명상이나 독서를 통해 뇌에 충분한 휴식을 제공하는 것이 건강을 유지하는 비결입니다.", "규칙적인 생활 습관이 곧 개운(開運)의 시작입니다. 오늘은 가벼운 산책으로 몸의 기혈 순환을 돕는 것이 이롭습니다."], "outro": ["명리학의 이치란 결국 스스로의 마음을 다스리는 데 있습니다. 평온한 하루 보내십시오.", "운칠기삼이라 하나 귀하의 노력이 바탕이 되어야 운도 따르는 법입니다. 건승을 기원합니다.", "오늘의 긍정적인 기운이 귀하의 내일을 더욱 밝게 비출 것입니다. 평안하십시오."]}}, {"level": "normal", "name": "포춘타로 켈리", "element": {"h": "火", "m": "새로운 사람과의 만남을 두려워 말라. 외출 시 에너지가 솟구친다.", "c": "#ef4444"}, "cafe": "마키아토", "mate": "ESTP / B형", "pools": {"intro": ["어머어머! 대박! 완전 럭키비키한 날이잖아요! 오늘 텐션 쫙 올려야 해요! 무조건 기분 좋은 일 생깁니다!", "와우! 썬(Sun) 카드 등장! 오늘 귀하의 하루는 그야말로 햇살 쨍쨍입니다! 긍정 에너지 뿜뿜 뿜어내볼까요?", "텐션 올려어~! 오늘 당신의 운세 바이브 미쳤다리! 주저하지 말고 무조건 고(Go) 하는 하루 만들어봐요!"], "wealth": ["펜타클 에이스 떴습니다! 새로운 수입원이 생기거나 뜻밖의 개이득 득템 찬스가 옵니다! 쇼핑 지름신 강림해도 인정!", "돈이 훅 들어왔다 훅 나갈 수 있는 휠 오브 포춘 떴어요! 충동구매 쪼금만 참으면 나중에 더 큰 거 지를 수 있어요!", "오늘 돈복 완전 터집니다! 소소하게 로또 한 장 사보거나 이벤트 응모해보는 거 완전 강추강추!!"], "work": ["완드 8번 카드! 일 처리 속도 완전 5G 급으로 빨라집니다! 미뤄뒀던 일 오늘 한 방에 싹 다 끝내버릴 수 있어요, 화이팅!", "직장에서 완전 인싸 등극! 팀원들이랑 쿵짝이 완전 잘 맞아서 프로젝트 대성공 예감! 리더십 팍팍 발휘해보세요!", "크리에이티브한 아이디어가 머릿속에서 폭발하는 날! 회의 시간에 입 꾹 다물고 있지 말고 막 던져봐요, 대박 날지도!"], "relation": ["쓰리 오브 컵스! 오늘 완전 술자리 각인데요? 인싸 될 준비 하시고 저녁 모임 무조건 참석 고고! 꿀잼 보장입니다!", "러버스 카드 떴다! 솔로라면 오늘 외출할 때 무조건 빡세게 꾸미고 나가세요! 심쿵할 운명적 만남 기대해봐도 좋아용!", "절친이랑 싸웠다면 오늘이 타이밍! 맛있는 디저트 하나 사들고 먼저 '야 미안' 한마디면 완전 눈 녹듯 사르르 풀립니다!"], "health": ["에너지 레벨 만렙! 가만히 앉아있으면 몸이 근질근질할 거예요! 퇴근하고 헬스장 뿌시거나 신나게 런닝 한 바퀴 어때요?", "피로 회복에는 뭐니뭐니해도 당 충전이죠! 오늘만큼은 다이어트 생각 끄고 달달한 마카롱에 라떼 한 잔 땡겨주세요!", "스트레스 프리 선언! 오늘 밤엔 좋아하는 넷플릭스 정주행하면서 맥주 한 캔 까는 거 완전 힐링 모먼트 보장합니다!"], "outro": ["켈리의 포춘 에너지 듬뿍 받아 가세요! 오늘 하루 완전 나이스 샷!", "기분 좋은 상상만 하세요! 당신의 긍정 바이브가 행운을 끌어당길 거예요! 빠잉!", "오늘 당신이 세상에서 제일 빛나는 주인공입니다! 아자아자 화이팅!!"]}}, {"level": "normal", "name": "데이터 분석가 최명리", "element": {"h": "金", "m": "감정보다 통계와 팩트에 기반해 결정하라. 치밀한 계산이 필요하다.", "c": "#f59e0b"}, "cafe": "에스프레소", "mate": "ISTP / AB형", "pools": {"intro": ["과거 10년치 대운 데이터를 머신러닝으로 분석해본 결과, 현재 귀하의 운세 지표는 강한 상승 트렌드를 보이고 있습니다.", "금일 귀하의 행운 확률 분포는 정규 분포의 우측 꼬리에 위치해 있습니다. 통계적으로 매우 이례적인 행운이 예상됩니다.", "운세 알고리즘 분석 결과, 오늘 하루는 리스크 대비 기대 수익이 가장 높은 최적의 타이밍으로 도출되었습니다."], "wealth": ["자산 포트폴리오를 점검하기 좋은 시점입니다. 감정에 휘둘린 투자를 배제하고 객관적인 지표에 기반하여 자산을 재분배하십시오.", "오늘 지출될 확률이 높은 불필요한 고정비 데이터를 스캔해보십시오. 구독 서비스나 숨은 수수료를 찾아내어 낭비를 막을 수 있습니다.", "과거 데이터를 회귀 분석한 결과, 오늘 시도하는 소규모 투자는 긍정적인 ROI(투자수익률)를 기록할 확률이 85% 이상입니다."], "work": ["업무 효율성이 평소 대비 130% 향상되는 구간입니다. 가장 복잡하고 논리력이 요구되는 태스크를 오전 중에 처리하시기 바랍니다.", "팀 내 의사결정 시 직관보다는 수치화된 데이터를 제시하십시오. 귀하의 제안이 채택될 확률이 기하급수적으로 상승합니다.", "발생 가능한 리스크 변수를 미리 리스트업 해두십시오. 플랜 B를 준비해둔다면 예외 상황에서도 시스템 오류 없이 넘어갈 수 있습니다."], "relation": ["인간관계 네트워크에서 핵심 허브(Hub) 역할을 하는 인물과 컨택할 확률이 높습니다. 비즈니스적 시너지를 낼 수 있도록 네트워킹에 투자하십시오.", "감정적인 충돌 데이터가 감지되었습니다. 상대방의 비합리적인 주장에 감정적으로 대응하지 말고 팩트 기반으로 쿨하게 대처하십시오.", "불필요한 인맥 관리로 인한 리소스 낭비를 줄이십시오. 당신의 핵심 KPI(핵심성과지표)에 도움이 되는 소수의 인연에 집중하는 것이 효율적입니다."], "health": ["신체 데이터 모니터링 결과, 수면 부채가 누적되어 있을 확률이 높습니다. 오늘 밤은 블루라이트를 차단하고 7.5시간 이상의 수면을 확보하십시오.", "당류 섭취 데이터가 기준치를 초과할 가능성이 보입니다. 오늘은 정제 탄수화물을 제한하고 카페인 의존도를 낮추는 것을 권장합니다.", "장시간 동일한 자세로 인한 코어 근육 약화가 우려됩니다. 50분 업무 후 10분 스트레칭 루틴을 시스템에 입력하고 강제 실행하십시오."], "outro": ["데이터는 거짓말을 하지 않습니다. 귀하의 합리적인 선택이 성공 확률을 99%로 끌어올릴 것입니다.", "오늘 하루도 감정의 노이즈를 제거하고 팩트에 기반한 최적의 아웃풋을 내시길 바랍니다. 분석 종료.", "모든 변수는 통제 가능합니다. 시스템 로드 완료. 완벽한 하루를 시작하십시오."]}}, {"level": "normal", "name": "홍대 마녀타로", "element": {"h": "火", "m": "잘못된 것은 과감하게 부수고 새로 시작하라. 미련은 독이 된다.", "c": "#ef4444"}, "cafe": "블랙 커피", "mate": "ENTJ / B형", "pools": {"intro": ["야, 너 지금 표정이 왜 그래? 딴생각 하잖아. 내 카드에 다 나와. 쓸데없는 고집 버리고 내 말 잘 들어봐.", "너 요즘 묘하게 운 꼬이는 거 느껴지지? 억지로 붙잡고 있으니까 그렇지. 오늘 싹 다 엎어버릴 생각 하고 들어라.", "자, 카드 뽑았다. 솔직히 말할게. 오늘 너한테 좋은 말 해줄 생각 없어. 팩트 폭력 들어갈 테니까 마음의 준비 해."], "wealth": ["악마(Devil) 카드 떴네. 너 오늘 지름신 제대로 들렸다. 카드 긁기 전에 잔고 확인 안 해? 정신 차리고 당장 카드 압수야 압수.", "바보(Fool) 카드. 돈도 없으면서 폼 잡으려고 돈 쓰지 마. 가성비 안 따지고 기분 내다간 이번 달 내내 굶을 줄 알아.", "아끼다 똥 된다는 말 알지? 꼭 써야 할 데는 좀 써! 너 자신한테 투자하는 것까지 아까워하면 평생 그 모양 그 꼴이야."], "work": ["타워(Tower) 카드. 이봐요, 다 무너진다고. 어설프게 수습할 생각 마! 차라리 엎을 건 빨리 엎고 백지상태에서 다시 시작하는 게 빨라.", "네가 다 할 수 있다는 착각 좀 버려. 혼자 짊어지고 가다 과로사할 일 있어? 일 좀 나눠주고 남한테 부탁도 좀 해 제발.", "너 오늘 상사나 거래처한테 한소리 들을 수 있는데, 욱해서 받아치면 너만 독박 쓴다. 속으로 참을 인 백 번 쓰고 웃어 넘겨."], "relation": ["죽음(Death) 카드 떴다. 너 힘들게 하는 그 인간관계, 제발 좀 끝내. 왜 쓰레기통을 자꾸 껴안고 살아? 당장 손절 쳐!", "외롭다고 아무나 만나지 마. 똥차 피하려다 쓰레기차 만난다고, 오늘 다가오는 인간들 중에 영양가 있는 놈 하나도 없어.", "네가 먼저 연락 안 하면 끊어질 인연에 미련 갖지 마. 네 가치 알아주는 진짜 사람만 챙기기에도 인생 짧아. 알았어?"], "health": ["스트레스 핑계 대고 밤마다 술 마시고 야식 먹지? 네 몸 상하는 소리 여기까지 들린다. 당장 오늘부터 야식 끊어!", "눈 퀭한 거 봐라. 오늘 퇴근하면 바로 집에 가서 씻고 누워. 어쭙잖게 논답시고 돌아다니다간 감기 몸살 직빵이야.", "너 그렇게 굽은 등으로 살다간 디스크 터진다? 당장 허리 꼿꼿하게 펴! 네 기세는 네 자세에서 나오는 거야."], "outro": ["내 말 기분 나쁘게 듣지 말고 피가 되고 살이 된다고 생각해라. 가서 똑바로 살아!", "징징대지 말고 행동으로 보여줘. 네 인생 네가 바꾸는 거지 카드가 바꿔주냐?", "가라. 오늘은 더 해줄 말 없다. 어깨 쫙 펴고 당당하게 걸어."]}}, {"level": "normal", "name": "종로 송영감", "element": {"h": "土", "m": "인내와 끈기가 승패를 좌우한다. 가벼운 언행을 삼가라.", "c": "#a16207"}, "cafe": "전통차", "mate": "ISFP / O형", "pools": {"intro": ["에잉 쯧쯧.. 요즘 젊은것들은 참을성이 없어! 모름지기 벼 이삭은 익을수록 고개를 숙이는 법이야. 오늘 하루 진중하게 행동하게.", "만세력을 보아하니 오늘 자네의 운은 대기만성(大器晩成) 형국이네. 초반에 안 풀린다고 성질내지 말고 꾹 참아야 쓰네.", "세상만사 새옹지마(塞翁之馬)라 하였어. 눈앞에 작은 일에 일희일비하지 말고 넓은 시야로 세상을 보란 말이야."], "wealth": ["티끌 모아 태산이라! 천 원 한 장 아쉬운 줄 알아야 큰돈을 만지는 법이야. 헛돈 쓰지 말고 저축부터 챙기게나.", "돈 냄새 쫓아다니는 불나방 짓은 그만둬! 우직하게 자기 일 파고들다 보면 재물은 자연스레 뒤따라오는 법인 것을 왜 모를까.", "남한테 돈 빌려주거나 보증 서는 짓은 패가망신의 지름길이야! 오늘은 누가 뭐라 해도 지갑 끈 단단히 묶고 모른 척하게."], "work": ["우물을 파도 한 우물을 파라 했어! 이리저리 눈치 보며 이직할 생각 말고 지금 있는 자리에서 뿌리를 뽑을 각오로 임해!", "상사가 쓴소리한다고 입 댓발 내밀지 말고! 다 자네 잘되라고 하는 소리니 달게 받아들이고 고칠 생각을 해야지!", "기초가 부실한 집은 금방 무너지는 법. 오늘 일처리 대충대충 넘기려다 훗날 큰 화를 입으니 기초부터 다시 꼼꼼히 점검해!"], "relation": ["근묵자흑(近墨者黑)이라! 행실이 가벼운 자와 어울리면 자네 평판도 깎이는 법이야. 입이 무겁고 배울 점 있는 사람과 교류하게.", "말 한마디에 천 냥 빚도 갚는다지만, 쏟아진 물은 주워 담을 수 없는 벱이야. 오늘 하루 남 말 할 땐 세 번 생각하고 내뱉어!", "오랜 친구한테 연락이라도 한 통 먼저 해보게. 이문만 쫓지 말고 사람의 정리를 지키고 사는 것이 사람 된 도리야."], "health": ["요즘 것들은 밤낮이 바뀌어서 문제야! 해 뜨면 일어나고 해 지면 자는 것이 자연의 순리건만. 당장 일찍 자는 버릇부터 들여!", "젊다고 몸 함부로 굴리다 늙어서 골병들어 고생해! 찬바람 쐬지 말고 몸을 항상 따뜻하게 덥혀야 속병이 안 나는 법이야.", "걷질 않으니 하체 기운이 다 빠져나가지! 차 타지 말고 두 다리로 힘차게 땅을 딛고 걸어봐. 그래야 양기가 도는 것이야."], "outro": ["잔소리라 생각지 말고 내 말 새겨듣게나. 다 자네 인생에 보탬이 되는 말이야.", "오늘 하루 묵묵히 땀 흘린 보람이 훗날 자네를 든든하게 지켜줄 걸세. 쯧쯧.. 가보게.", "성실함 하나 무기로 삼으면 세상에 못 넘을 산이 없어! 명심하게나!"]}}, {"level": "normal", "name": "꿈해몽 전문 최씨", "element": {"h": "水", "m": "징조와 암시를 놓치지 말라. 스쳐가는 영감이 정답일 수 있다.", "c": "#3b82f6"}, "cafe": "라벤더 티", "mate": "INFP / AB형", "pools": {"intro": ["어젯밤 꾼 꿈... 혹시 기억나시나요? 안 좋은 꿈을 꿨다고 실망 마세요. 은근히 호랑이가 웅크린 형국이니 대길할 징조입니다.", "현실은 거대한 꿈과 같습니다. 오늘 당신의 일상 속에 스쳐 가는 작은 암시들을 놓치지 마세요. 그곳에 정답이 있습니다.", "안개가 걷히고 선명한 풍경이 드러나는 운세군요. 오랫동안 풀리지 않던 의문이 오늘 불현듯 해답을 찾게 될 것입니다."], "wealth": ["똥 꿈이나 불타는 꿈을 꾸지 않았어도 재물운이 나쁘지 않습니다. 맑은 물이 고이듯 서서히 통장이 채워지는 시기입니다.", "가다가 우연히 떨어진 동전이나 낯선 물건을 보게 된다면, 그것은 행운의 징표입니다. 소소한 횡재수가 있는 날입니다.", "돈이 물처럼 새어 나가는 환영이 보입니다. 오늘만큼은 충동적인 감정으로 결제를 진행하는 일을 반드시 피하십시오."], "work": ["하늘을 나는 새처럼 시야를 넓게 가지세요. 눈앞의 서류보다 이면의 흐름을 꿰뚫어 볼 때 직장 내에서 큰 성과를 얻습니다.", "길을 잃고 헤매는 꿈의 연장선에 있다면, 오늘 과감하게 방향을 틀어보세요. 새로운 시도가 오히려 당신을 목적지로 이끕니다.", "귀인이 문을 두드리는 형상입니다. 당신의 업무를 도와줄 뜻밖의 조력자가 나타날 수 있으니 주변 사람의 제안을 경청하세요."], "relation": ["거울 속의 내 모습이 흐릿하게 보이듯, 오늘은 타인의 마음을 온전히 읽기 어렵습니다. 섣부른 판단이나 오해를 주의하세요.", "꽃이 만발한 정원을 거니는 징조군요. 긍정적인 인연이 다가오고 있습니다. 처음 만나는 사람에게 먼저 부드럽게 미소 지어보세요.", "오래된 실타래를 푸는 꿈처럼, 과거의 묵은 인연이나 껄끄러웠던 관계를 회복하기에 아주 좋은 타이밍입니다."], "health": ["깊은 심연에 빠진 듯 몸이 무겁게 느껴질 수 있습니다. 무리한 활동을 피하고 따뜻한 반신욕으로 뭉친 긴장을 녹여내세요.", "맑은 샘물을 마시는 징조처럼 컨디션이 회복되고 있습니다. 오늘 마시는 물 한 잔이 당신의 기운을 맑게 정화해 줄 것입니다.", "바람에 흔들리는 나뭇가지처럼 마음이 불안정합니다. 향기가 좋은 차를 마시며 시끄러운 외부의 소음을 잠시 차단해 보십시오."], "outro": ["모든 징조는 당신이 마음먹기에 따라 길흉이 바뀔 수 있습니다. 평온한 밤 맞이하시길.", "당신의 직관이 보여주는 길을 믿으세요. 꿈처럼 신비롭고 아름다운 하루가 되기를.", "무의식의 메시지에 귀 기울여주셔서 감사합니다. 좋은 꿈 꾸십시오."]}}];
+        const pantoneColors = [{"name": "Classic Blue", "code": "PANTONE 19-4052", "hex": "#0F4C81"}, {"name": "Illuminating", "code": "PANTONE 13-0647", "hex": "#F5DF4D"}, {"name": "Ultimate Gray", "code": "PANTONE 17-5104", "hex": "#939597"}, {"name": "Very Peri", "code": "PANTONE 17-3938", "hex": "#6667AB"}, {"name": "Viva Magenta", "code": "PANTONE 18-1750", "hex": "#BB2649"}, {"name": "Peach Fuzz", "code": "PANTONE 13-1023", "hex": "#FFBE98"}, {"name": "Living Coral", "code": "PANTONE 16-1546", "hex": "#FF6F61"}, {"name": "Ultra Violet", "code": "PANTONE 18-3838", "hex": "#5F4B8B"}, {"name": "Greenery", "code": "PANTONE 15-0343", "hex": "#88B04B"}, {"name": "Rose Quartz", "code": "PANTONE 13-1520", "hex": "#F7CAC9"}, {"name": "Serenity", "code": "PANTONE 15-3919", "hex": "#92A8D1"}, {"name": "Marsala", "code": "PANTONE 18-1438", "hex": "#955251"}, {"name": "Radiant Orchid", "code": "PANTONE 18-3224", "hex": "#AD5E99"}, {"name": "Emerald", "code": "PANTONE 17-5641", "hex": "#009473"}, {"name": "Tangerine Tango", "code": "PANTONE 17-1463", "hex": "#DD4124"}];
+        
+        let selectedMode = null;
+        let isSummoning = false;
+        let currentAngelData = null; 
+        let scoreInterval; 
+        let gaugeInterval;
+
+        const themes = {
+            'rare': { label: '천기 (Rare) 등급', hex: '#a855f7', gradStart: '#9333ea', gradEnd: '#d8b4fe' },
+            'special': { label: '영기 (Special) 등급', hex: '#22c55e', gradStart: '#16a34a', gradEnd: '#86efac' },
+            'normal': { label: '인연 (Normal) 등급', hex: '#3b82f6', gradStart: '#2563eb', gradEnd: '#93c5fd' }
+        };
+
+        const mbtis = ["INFP", "ENFP", "INFJ", "ENFJ", "INTJ", "ENTJ", "INTP", "ENTP", "ISFP", "ESFP", "ISTP", "ESTP", "ISFJ", "ESFJ", "ISTJ", "ESTJ"];
+        const bloods = ["A형", "B형", "O형", "AB형"];
+        
+        // 유틸 함수들
+        function getRandomItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+        function updateClock() {
+            if(isSummoning) return;
+            const now = new Date();
+            const hrDeg = (now.getHours() % 12) * 30 + (now.getMinutes() / 2) - 50; 
+            const minDeg = now.getMinutes() * 6 + (now.getSeconds() / 10) - 50;
+            const secDeg = now.getSeconds() * 6 + (now.getMilliseconds() * 0.006) - 50;
+            document.getElementById('hourHand').style.transform = `translateX(-50%) rotate(${hrDeg}deg)`;
+            document.getElementById('minHand').style.transform = `translateX(-50%) rotate(${minDeg}deg)`;
+            document.getElementById('secHand').style.transform = `translateX(-50%) rotate(${secDeg}deg)`;
+            
+            const msStr = String(now.getMilliseconds()).padStart(3, '0').substring(0, 2);
+            document.getElementById('digitalClock').innerText = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}:${msStr}`;
+            requestAnimationFrame(updateClock);
+        }
+        requestAnimationFrame(updateClock);
+
+        function selectMode(mode) {
+            selectedMode = mode;
+            document.getElementById('btnFortune').classList.remove('active');
+            document.getElementById('btnFace').classList.remove('active');
+            if(mode === 'fortune') document.getElementById('btnFortune').classList.add('active');
+            if(mode === 'face') { document.getElementById('btnFace').classList.add('active'); triggerFaceScan(); }
+            
+            const summonBtn = document.getElementById('btnSummon');
+            summonBtn.disabled = false;
+            summonBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+            summonBtn.classList.add('opacity-100', 'hover:-translate-y-1', 'hover:shadow-[0_0_25px_rgba(251,191,36,0.6)]');
+            summonBtn.innerHTML = `<div class="text-sm opacity-80 mb-1">모든 준비가 끝났습니다</div><div class="text-2xl">운명과 시간이 만나는 순간</div>`;
+        }
+
+        function triggerFaceScan() { document.getElementById('faceInput').click(); }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            alert("관상 데이터가 등록되었습니다.");
+            selectMode('face'); document.getElementById('faceInput').value = '';
+        }
+
+        // 운세 텍스트 생성 (동일 내용 하루 1회 초과 방지)
+        function generateUniqueFortuneText(angel) {
+            const today = new Date().toISOString().slice(0, 10);
+            const historyKey = 'fortuneHistory_' + today;
+            let history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+            
+            let text = '';
+            let isUnique = false;
+            let attempts = 0;
+            
+            while (!isUnique && attempts < 20) {
+                // 각 분야별로 1개씩 뽑아 이어붙이기 (총 7~12문장 내외가 됨)
+                let p = angel.pools;
+                text = `${getRandomItem(p.intro)} ${getRandomItem(p.wealth)} ${getRandomItem(p.work)} ${getRandomItem(p.relation)} ${getRandomItem(p.health)} ${getRandomItem(p.outro)}`;
+                
+                // 해시 생성 (간단한 문자열 해시)
+                let hash = text.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0);
+                
+                if(!history.includes(hash)) {
+                    isUnique = true;
+                    history.push(hash);
+                    localStorage.setItem(historyKey, JSON.stringify(history));
+                }
+                attempts++;
+            }
+            return text;
+        }
+
+        function startSummoning() {
+            if(isSummoning || !selectedMode) return;
+            isSummoning = true;
+            
+            const night = document.getElementById('nightOverlay');
+            const dawn = document.getElementById('dawnOverlay');
+            night.style.opacity = '1';
+            setTimeout(() => { dawn.style.opacity = '1'; }, 1000);
+            document.getElementById('mainScreen').style.opacity = '0';
+
+            // 15종 캐릭터 완전 랜덤 선택
+            const angel = getRandomItem(allAngels);
+            currentAngelData = angel;
+            
+            // 신통력 게이지 값 1회 고정 계산 (50~100)
+            currentAngelData.targetGauge = Math.floor(Math.random() * 51) + 50;
+            
+            // 운세 텍스트 고유 생성
+            currentAngelData.generatedFortune = generateUniqueFortuneText(angel);
+
+            setTimeout(() => {
+                night.style.opacity = '0';
+                dawn.style.opacity = '0';
+                
+                document.getElementById('mainScreen').classList.add('hidden');
+                const resultScreen = document.getElementById('resultScreen');
+                resultScreen.classList.remove('hidden');
+                resultScreen.style.display = 'flex';
+                resultScreen.scrollTop = 0;
+                
+                prepareResultUI(angel);
+                setupLotto();
+
+                setTimeout(() => {
+                    document.getElementById('cardInner').classList.add('card-show');
+                    setTimeout(() => {
+                        document.getElementById('cardInner').classList.add('is-flipped');
+                        initObserver(angel);
+                    }, 800);
+                }, 100);
+            }, 3000);
+        }
+
+        function prepareResultUI(angel) {
+            const theme = themes[angel.level];
+            
+            document.getElementById('cardFront').style.borderColor = theme.hex;
+            document.getElementById('cardBack').style.borderColor = theme.hex;
+            document.getElementById('loadingIcon').style.color = theme.hex;
+            document.getElementById('loadingText').style.color = theme.hex;
+            document.getElementById('quoteIcon').style.color = theme.hex;
+            
+            document.getElementById('rankBadge').innerText = theme.label;
+            document.getElementById('rankBadge').style.background = `linear-gradient(to right, ${theme.gradStart}, ${theme.gradEnd})`;
+
+            document.getElementById('cardImage').src = 'https://images.unsplash.com/photo-1532012197267-da84d127e765?q=80&w=300&auto=format&fit=crop';
+            document.getElementById('cardName').innerText = angel.name;
+            document.getElementById('fortuneMessage').innerHTML = angel.generatedFortune;
+            
+            // 팬톤 컬러 완전 랜덤 적용
+            let rColor = getRandomItem(pantoneColors);
+            document.getElementById('luckyColorBox').style.backgroundColor = rColor.hex;
+            document.getElementById('luckyColor').innerHTML = `<span class="text-[10px] block opacity-75 font-mono">${rColor.code}</span>${rColor.name}`;
+            
+            document.getElementById('luckyCafe').innerText = angel.cafe;
+            
+            document.getElementById('luckyMate').innerHTML = angel.mate.replace(' / ', '<br>');
+            
+            let badMbti, badBlood;
+            do { badMbti = getRandomItem(mbtis); } while(angel.mate.includes(badMbti));
+            do { badBlood = getRandomItem(bloods); } while(angel.mate.includes(badBlood));
+            document.getElementById('badMate').innerHTML = `${badMbti}<br>${badBlood}`;
+
+            document.getElementById('yinYangHanja').innerText = angel.element.h;
+            document.getElementById('yinYangHanja').style.color = angel.element.c;
+            document.getElementById('actionMessage').innerText = angel.element.m;
+        }
+
+        function setupLotto() {
+            const grid = document.getElementById('lottoGrid');
+            grid.innerHTML = '';
+            
+            // 1~45 Fisher-Yates Shuffle 로 완전 랜덤 구성
+            let nums = Array.from({length: 45}, (_, i) => i + 1);
+            for(let i = nums.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [nums[i], nums[j]] = [nums[j], nums[i]];
+            }
+            let selectedNums = nums.slice(0, 6).sort((a, b) => a - b);
+            
+            selectedNums.forEach((num) => {
+                let card = document.createElement('div');
+                card.className = 'lotto-card';
+                card.innerHTML = `
+                    <div class="lotto-inner">
+                        <div class="lotto-front">?</div>
+                        <div class="lotto-back">${num}</div>
+                    </div>
+                `;
+                card.onclick = function() {
+                    this.classList.add('flipped');
+                    document.getElementById('lottoHint').style.display = 'none';
+                };
+                grid.appendChild(card);
+            });
+        }
+
+        function initObserver(angel) {
+            const statsContainer = document.getElementById('statsContainer');
+            const gaugeContainer = document.querySelector('.gauge-container');
+            
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        statsContainer.classList.remove('opacity-0', 'translate-y-10');
+                        statsContainer.classList.add('opacity-100', 'translate-y-0');
+                        
+                        // 랜덤점수는 70~99 사이로 가정
+                        runStatsAnimation(Math.floor(Math.random()*30)+70);
+                        runGaugeAnimation();
+                        document.getElementById('yinYangHanja').classList.add('animate');
+                    } else {
+                        statsContainer.classList.remove('opacity-100', 'translate-y-0');
+                        statsContainer.classList.add('opacity-0', 'translate-y-10');
+                        document.getElementById('fortuneScore').innerText = '0';
+                        document.getElementById('gaugeText').innerText = '0%';
+                        document.getElementById('gaugePath').setAttribute('stroke-dasharray', '0, 100');
+                        document.getElementById('yinYangHanja').classList.remove('animate');
+                        clearInterval(scoreInterval);
+                        clearInterval(gaugeInterval);
+                    }
+                });
+            }, { threshold: 0.1 });
+            
+            observer.observe(statsContainer);
+            observer.observe(gaugeContainer);
+        }
+
+        function runStatsAnimation(targetScore) {
+            let currentScore = 0;
+            const scoreEl = document.getElementById('fortuneScore');
+            
+            clearInterval(scoreInterval);
+            scoreInterval = setInterval(() => {
+                currentScore += 2;
+                if(currentScore >= targetScore) {
+                    currentScore = targetScore;
+                    clearInterval(scoreInterval);
+                }
+                scoreEl.innerText = currentScore;
+            }, 20);
+        }
+
+        function runGaugeAnimation() {
+            // 저장해둔 고정된 목표 수치 사용
+            let targetGauge = currentAngelData.targetGauge; 
+            let current = 0;
+            const textEl = document.getElementById('gaugeText');
+            const pathEl = document.getElementById('gaugePath');
+            
+            const strokeColor = targetGauge > 80 ? '#22c55e' : (targetGauge > 60 ? '#eab308' : '#ef4444');
+            pathEl.style.stroke = strokeColor;
+            
+            clearInterval(gaugeInterval);
+            gaugeInterval = setInterval(() => {
+                current += 2;
+                if(current >= targetGauge) {
+                    current = targetGauge;
+                    clearInterval(gaugeInterval);
+                }
+                textEl.innerText = current + '%';
+                pathEl.setAttribute('stroke-dasharray', `${current}, 100`);
+            }, 30);
+        }
+
+        function shareFortune() {
+            if(!currentAngelData) return;
+            alert('행운 메시지가 클립보드에 복사되었습니다.');
+        }
+    </script>
+</body>
+</html>
